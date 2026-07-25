@@ -5,4 +5,6 @@ im a new app coder please dont judge.
 
 if you dont like the app js uninstall its not that deep.
 
-as for june 2026 it still works.
+as for august 2026 it doesnt work(im to lazy to fix here).
+
+joim https://discord.gg/3fmbXDZad9 for updated version
