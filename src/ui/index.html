@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roblox FPS Manager</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="titlebar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
+    <span class="name">Roblox FPS Manager</span>
+    <span class="ver">1.0</span>
+  </div>
+  <div class="tb-right">
+    <div class="pill" id="robloxPill"><i></i><span>Roblox idle</span></div>
+    <button class="wbtn" id="btnMin" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
+    <button class="wbtn" id="btnMax" title="Maximize" aria-label="Maximize"><svg class="i-max" viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg><svg class="i-restore" viewBox="0 0 10 10"><rect x="1.5" y="3.5" width="5" height="5"/><path d="M3.5 3.5V1.5h5v5h-2"/></svg></button>
+    <button class="wbtn close" id="btnClose" title="Close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section class="panel cap">
+    <div class="panel-head">
+      <h2>Framerate cap</h2>
+      <span class="badge" id="syncBadge">Loading</span>
+    </div>
+
+    <div class="readout">
+      <div class="value">
+        <input id="fpsInput" type="text" inputmode="numeric" maxlength="4" spellcheck="false" autocomplete="off" aria-label="Target FPS">
+        <span class="unit">FPS</span>
+      </div>
+      <div class="frametime">
+        <span class="label">Frame time</span>
+        <span class="num" id="frameTime">-</span>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="label">In file</span><span class="num" id="statFile">-</span></div>
+      <div class="stat"><span class="label">Display</span><span class="num" id="statHz">-</span></div>
+      <div class="stat"><span class="label">Delta</span><span class="num" id="statDelta">-</span></div>
+    </div>
+
+    <div class="slider">
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <input id="fpsRange" type="range" min="15" max="480" step="1" aria-label="FPS slider">
+      <div class="ticks" id="ticks"></div>
+    </div>
+
+    <div class="presets" id="presets"></div>
+
+    <div class="actions">
+      <button class="btn ghost" id="btnRevert">Revert</button>
+      <button class="btn primary" id="btnApply"><span>Apply</span><kbd>Enter</kbd></button>
+    </div>
+  </section>
+
+  <div class="side">
+    <section class="panel">
+      <div class="panel-head"><h2>Protection</h2></div>
+      <label class="row toggle-row">
+        <div class="row-text"><span class="row-title">Lock file</span><span class="row-sub">Read-only, Roblox cannot overwrite it on exit</span></div>
+        <input type="checkbox" id="tglLock" class="toggle">
+      </label>
+      <label class="row toggle-row">
+        <div class="row-text"><span class="row-title">Enforce</span><span class="row-sub">Re-apply <b id="enforceTarget">-</b> FPS whenever the file changes</span></div>
+        <input type="checkbox" id="tglEnforce" class="toggle">
+      </label>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Settings file</h2><span class="tag" id="fileTag">-</span></div>
+      <div class="path" id="filePath">-</div>
+      <div class="meta">
+        <div><span class="label">Size</span><span class="num" id="fileSize">-</span></div>
+        <div><span class="label">Modified</span><span class="num" id="fileMod">-</span></div>
+        <div><span class="label">Backup</span><span class="num" id="fileBackup">-</span></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn sm" id="btnOpen">Open</button>
+        <button class="btn sm" id="btnReload">Reload</button>
+        <button class="btn sm" id="btnBackup">Backup</button>
+        <button class="btn sm" id="btnRestore">Restore</button>
+      </div>
+    </section>
+
+    <section class="panel log-panel">
+      <div class="panel-head"><h2>Activity</h2><button class="link" id="btnClear">Clear</button></div>
+      <ol class="log" id="log"></ol>
+    </section>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
