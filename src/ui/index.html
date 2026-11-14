@@ -11,8 +11,14 @@
   <div class="brand">
     <svg class="logo" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
     <span class="name">Roblox FPS Manager</span>
-    <span class="ver">1.0</span>
   </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="cap">FPS Cap</button>
+    <button class="tab" data-view="live">Live</button>
+    <button class="tab" data-view="system">System</button>
+    <button class="tab" data-view="flags">FFlags</button>
+    <button class="tab" data-view="profiles">Profiles</button>
+  </nav>
   <div class="tb-right">
     <div class="pill" id="robloxPill"><i></i><span>Roblox idle</span></div>
     <button class="wbtn" id="btnMin" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
@@ -22,77 +28,208 @@
 </header>
 
 <main>
-  <section class="panel cap">
-    <div class="panel-head">
-      <h2>Framerate cap</h2>
-      <span class="badge" id="syncBadge">Loading</span>
-    </div>
+  <section class="view active" data-view="cap">
+    <div class="cap-grid">
+      <section class="panel cap">
+        <div class="panel-head">
+          <h2>Framerate cap</h2>
+          <span class="badge" id="syncBadge">Loading</span>
+        </div>
+        <div class="readout">
+          <div class="value">
+            <input id="fpsInput" type="text" inputmode="numeric" maxlength="4" spellcheck="false" autocomplete="off" aria-label="Target FPS">
+            <span class="unit">FPS</span>
+          </div>
+          <div class="frametime">
+            <span class="label">Frame time</span>
+            <span class="num" id="frameTime">-</span>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="label">In file</span><span class="num" id="statFile">-</span></div>
+          <div class="stat"><span class="label">Display</span><span class="num" id="statHz">-</span></div>
+          <div class="stat"><span class="label">Delta</span><span class="num" id="statDelta">-</span></div>
+        </div>
+        <div class="slider">
+          <div class="track"><div class="fill" id="fill"></div></div>
+          <input id="fpsRange" type="range" min="15" max="480" step="1" aria-label="FPS slider">
+          <div class="ticks" id="ticks"></div>
+        </div>
+        <div class="presets" id="presets"></div>
+        <div class="hint" id="hint"><i></i><span id="hintText"></span><button class="link" id="hintAction"></button></div>
+        <div class="actions">
+          <button class="btn ghost" id="btnRevert">Revert</button>
+          <button class="btn primary" id="btnApply"><span>Apply</span><kbd>Enter</kbd></button>
+        </div>
+      </section>
 
-    <div class="readout">
-      <div class="value">
-        <input id="fpsInput" type="text" inputmode="numeric" maxlength="4" spellcheck="false" autocomplete="off" aria-label="Target FPS">
-        <span class="unit">FPS</span>
+      <div class="side">
+        <section class="panel">
+          <div class="panel-head"><h2>Protection</h2></div>
+          <label class="row toggle-row">
+            <div class="row-text"><span class="row-title">Lock file</span><span class="row-sub">Read-only, Roblox cannot overwrite it on exit</span></div>
+            <input type="checkbox" id="tglLock" class="toggle">
+          </label>
+          <label class="row toggle-row">
+            <div class="row-text"><span class="row-title">Enforce</span><span class="row-sub">Re-apply <b id="enforceTarget">-</b> FPS whenever the file changes</span></div>
+            <input type="checkbox" id="tglEnforce" class="toggle">
+          </label>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Settings file</h2><span class="tag" id="fileTag">-</span></div>
+          <div class="path" id="filePath">-</div>
+          <div class="meta">
+            <div><span class="label">Size</span><span class="num" id="fileSize">-</span></div>
+            <div><span class="label">Modified</span><span class="num" id="fileMod">-</span></div>
+            <div><span class="label">Backup</span><span class="num" id="fileBackup">-</span></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn sm" id="btnOpen">Open</button>
+            <button class="btn sm" id="btnReload">Reload</button>
+            <button class="btn sm" id="btnBackup">Backup</button>
+            <button class="btn sm" id="btnRestore">Restore</button>
+          </div>
+        </section>
+        <section class="panel log-panel">
+          <div class="panel-head"><h2>Activity</h2><button class="link" id="btnClear">Clear</button></div>
+          <ol class="log" id="log"></ol>
+        </section>
       </div>
-      <div class="frametime">
-        <span class="label">Frame time</span>
-        <span class="num" id="frameTime">-</span>
-      </div>
-    </div>
-
-    <div class="stats">
-      <div class="stat"><span class="label">In file</span><span class="num" id="statFile">-</span></div>
-      <div class="stat"><span class="label">Display</span><span class="num" id="statHz">-</span></div>
-      <div class="stat"><span class="label">Delta</span><span class="num" id="statDelta">-</span></div>
-    </div>
-
-    <div class="slider">
-      <div class="track"><div class="fill" id="fill"></div></div>
-      <input id="fpsRange" type="range" min="15" max="480" step="1" aria-label="FPS slider">
-      <div class="ticks" id="ticks"></div>
-    </div>
-
-    <div class="presets" id="presets"></div>
-
-    <div class="actions">
-      <button class="btn ghost" id="btnRevert">Revert</button>
-      <button class="btn primary" id="btnApply"><span>Apply</span><kbd>Enter</kbd></button>
     </div>
   </section>
 
-  <div class="side">
-    <section class="panel">
-      <div class="panel-head"><h2>Protection</h2></div>
-      <label class="row toggle-row">
-        <div class="row-text"><span class="row-title">Lock file</span><span class="row-sub">Read-only, Roblox cannot overwrite it on exit</span></div>
-        <input type="checkbox" id="tglLock" class="toggle">
-      </label>
-      <label class="row toggle-row">
-        <div class="row-text"><span class="row-title">Enforce</span><span class="row-sub">Re-apply <b id="enforceTarget">-</b> FPS whenever the file changes</span></div>
-        <input type="checkbox" id="tglEnforce" class="toggle">
-      </label>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head"><h2>Settings file</h2><span class="tag" id="fileTag">-</span></div>
-      <div class="path" id="filePath">-</div>
-      <div class="meta">
-        <div><span class="label">Size</span><span class="num" id="fileSize">-</span></div>
-        <div><span class="label">Modified</span><span class="num" id="fileMod">-</span></div>
-        <div><span class="label">Backup</span><span class="num" id="fileBackup">-</span></div>
+  <section class="view" data-view="live">
+    <section class="panel live-panel">
+      <div class="panel-head">
+        <h2>Live frame time</h2>
+        <div class="head-right">
+          <span class="tag" id="liveMeta"></span>
+          <span class="badge" id="liveBadge">Off</span>
+          <label class="mini-toggle"><span>Monitor</span><input type="checkbox" class="toggle" id="tglLive"></label>
+        </div>
       </div>
-      <div class="btn-row">
-        <button class="btn sm" id="btnOpen">Open</button>
-        <button class="btn sm" id="btnReload">Reload</button>
-        <button class="btn sm" id="btnBackup">Backup</button>
-        <button class="btn sm" id="btnRestore">Restore</button>
+      <div class="tiles">
+        <div class="tile main"><span class="label">FPS</span><span class="num" id="tFps">-</span></div>
+        <div class="tile"><span class="label">Avg frame time</span><span class="num" id="tAvg">-</span></div>
+        <div class="tile"><span class="label">1% low</span><span class="num" id="tLow1">-</span></div>
+        <div class="tile"><span class="label">0.1% low</span><span class="num" id="tLow01">-</span></div>
+        <div class="tile"><span class="label">Worst frame</span><span class="num" id="tMax">-</span></div>
+        <div class="tile"><span class="label">Stutters</span><span class="num" id="tStutter">-</span></div>
       </div>
+      <div class="graph-wrap">
+        <canvas id="graph"></canvas>
+        <div class="graph-empty" id="graphEmpty"><span id="graphMsg"></span><button class="btn sm" id="graphBtn"></button></div>
+      </div>
+      <div class="graph-foot"><span>Last 10 seconds, milliseconds per frame</span><span id="liveSrc">Source: Windows DXGI present events</span></div>
     </section>
+  </section>
 
-    <section class="panel log-panel">
-      <div class="panel-head"><h2>Activity</h2><button class="link" id="btnClear">Clear</button></div>
-      <ol class="log" id="log"></ol>
-    </section>
-  </div>
+  <section class="view" data-view="system">
+    <div class="sys-grid">
+      <section class="panel">
+        <div class="panel-head"><h2>Roblox process priority</h2><span class="tag" id="prioTag">-</span></div>
+        <div class="seg" id="prioSeg">
+          <button data-v="0">Normal</button>
+          <button data-v="1">Above normal</button>
+          <button data-v="2">High</button>
+        </div>
+        <p class="note" id="prioNote">Gives Roblox more CPU time than background apps. Re-applied every time Roblox starts.</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Fullscreen optimizations</h2><span class="tag" id="fsoTag">-</span></div>
+        <label class="row toggle-row">
+          <div class="row-text"><span class="row-title">Disable for Roblox</span><span class="row-sub">Uses classic fullscreen, which can lower input lag and stutter</span></div>
+          <input type="checkbox" id="tglFso" class="toggle">
+        </label>
+        <p class="note">Applied to every installed Roblox build, and re-applied automatically when Roblox updates. Takes effect on next launch.</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Graphics processor</h2><span class="tag" id="gpuTag">-</span></div>
+        <label class="row toggle-row">
+          <div class="row-text"><span class="row-title">Use high-performance GPU</span><span class="row-sub">Sets the Windows graphics preference for Roblox</span></div>
+          <input type="checkbox" id="tglGpu" class="toggle">
+        </label>
+        <div class="kv">
+          <div><span class="label">High performance</span><span class="num" id="gpuHigh">-</span></div>
+          <div><span class="label">Power saving</span><span class="num" id="gpuLow">-</span></div>
+        </div>
+        <p class="note" id="gpuNote"></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Power</h2><span class="badge" id="powerBadge">-</span></div>
+        <div class="field-row">
+          <span class="label">Power plan</span>
+          <select id="planSelect" aria-label="Power plan"></select>
+        </div>
+        <div class="field-row" id="overlayRow">
+          <span class="label">Power mode</span>
+          <select id="overlaySelect" aria-label="Power mode">
+            <option value="efficiency">Best power efficiency</option>
+            <option value="balanced">Balanced</option>
+            <option value="best">Best performance</option>
+          </select>
+        </div>
+        <p class="note" id="powerNote"></p>
+      </section>
+    </div>
+  </section>
+
+  <section class="view" data-view="flags">
+    <div class="flags-grid">
+      <section class="panel flag-add">
+        <div class="panel-head"><h2>Add flag</h2><span class="tag">Allowlist since Sep 29, 2025</span></div>
+        <select id="flagSelect" aria-label="Fast flag"></select>
+        <div class="flag-info">
+          <div class="flag-name num" id="flagName">-</div>
+          <p class="note" id="flagDesc"></p>
+          <div class="flag-tags"><span class="chip-tag" id="flagType">-</span><span class="chip-tag" id="flagAllow">-</span></div>
+        </div>
+        <div class="field-row">
+          <span class="label">Value</span>
+          <input class="field num" id="flagValue" spellcheck="false" autocomplete="off">
+          <select id="flagBool" aria-label="Value"><option>True</option><option>False</option></select>
+        </div>
+        <button class="btn primary block" id="btnFlagAdd">Add to list</button>
+        <div class="divider"><span>Custom flag</span></div>
+        <div class="custom">
+          <input class="field num" id="customName" placeholder="FlagName" spellcheck="false" autocomplete="off">
+          <input class="field num" id="customValue" placeholder="Value" spellcheck="false" autocomplete="off">
+          <button class="btn sm" id="btnCustomAdd">Add</button>
+        </div>
+        <p class="note">Roblox only reads flags on its allowlist. Others are written but ignored by the client.</p>
+      </section>
+
+      <section class="panel flag-list-panel">
+        <div class="panel-head"><h2>Active flags <span class="count" id="flagCount">0</span></h2><span class="badge" id="flagBadge">Synced</span></div>
+        <ol class="flag-list" id="flagList"></ol>
+        <div class="flag-foot">
+          <span class="tag" id="flagDirs">-</span>
+          <div class="btn-row">
+            <button class="btn sm ghost" id="btnFlagClear">Clear all</button>
+            <button class="btn sm primary" id="btnFlagApply">Apply</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="view" data-view="profiles">
+    <div class="prof-wrap">
+      <section class="panel prof-save">
+        <div class="row-text"><span class="row-title">Save current setup</span><span class="row-sub">Captures the FPS value, priority, fullscreen optimizations, GPU preference and active FFlags</span></div>
+        <div class="custom">
+          <input class="field" id="profName" placeholder="Profile name" maxlength="32" spellcheck="false" autocomplete="off">
+          <button class="btn sm primary" id="btnProfSave">Save</button>
+        </div>
+      </section>
+      <div class="prof-grid" id="profGrid"></div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
 </main>
 <script src="app.js"></script>
 </body>

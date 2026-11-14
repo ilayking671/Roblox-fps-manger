@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 #include "WebView2.h"
+#include "live.h"
 #include "settings.h"
+#include "tweaks.h"
 
 class App {
 public:
@@ -41,9 +43,31 @@ private:
     void PushState(bool force = false);
     void Log(const char* kind, const std::string& text);
     void Post(const std::string& json);
-    bool RobloxRunning() const;
     int RefreshRate() const;
     std::wstring BackupPath() const;
+    void ApplyExeTweaks(const std::vector<std::wstring>& exes, bool fso, bool gpu);
+    void WriteFlags(bool announce);
+    void UpdateLive();
+    void PumpFrames();
+    void Elevate();
+    std::string PowerJson() const;
+
+    std::vector<DWORD> pids_;
+    std::vector<std::wstring> exes_;
+    std::string exeKey_;
+    int priority_ = 0;
+    bool fso_ = false;
+    bool gpu_ = false;
+    bool liveEnabled_ = true;
+    bool liveTried_ = false;
+    bool elevated_ = false;
+    bool flagsManaged_ = false;
+    int flagDirs_ = 0;
+    DWORD livePid_ = 0;
+    std::string flags_;
+    std::string profiles_;
+    tweaks::GpuInfo gpus_;
+    LiveMonitor live_;
 
     HINSTANCE instance_;
     HMODULE loader_;

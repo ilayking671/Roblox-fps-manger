@@ -1,11 +1,13 @@
 #include "app.h"
 #include "resource.h"
 #include "util.h"
+#include "fflags.h"
+#include "power.h"
 #include <dwmapi.h>
 #include <shellapi.h>
 #include <shlwapi.h>
-#include <tlhelp32.h>
 #include <algorithm>
+#include <cstdio>
 #include "WebView2EnvironmentOptions.h"
 
 using Microsoft::WRL::Callback;
@@ -16,10 +18,11 @@ namespace {
 constexpr UINT WM_FS_CHANGED = WM_APP + 1;
 constexpr UINT_PTR kTimerFs = 1;
 constexpr UINT_PTR kTimerPoll = 2;
+constexpr UINT_PTR kTimerFrames = 3;
 constexpr int kWidth = 920;
-constexpr int kHeight = 600;
+constexpr int kHeight = 640;
 constexpr int kMinWidth = 820;
-constexpr int kMinHeight = 560;
+constexpr int kMinHeight = 600;
 constexpr int kMinFps = 1;
 constexpr int kMaxFps = 9999;
 constexpr COLORREF kBg = RGB(14, 15, 17);
@@ -51,24 +54,42 @@ App::App(HINSTANCE instance, HMODULE loader) : instance_(instance), loader_(load
     configPath_ = dataDir_ + L"\\config.ini";
     LoadConfig();
     settings_.Resolve();
+    elevated_ = tweaks::IsElevated();
+    gpus_ = tweaks::QueryGpus();
+    flagsManaged_ = util::ReadAll(dataDir_ + L"\\fflags.json", flags_) && fflags::LooksLikeObject(flags_);
+    if (!flagsManaged_) {
+        flags_ = fflags::ReadNewest(tweaks::VersionDirs());
+        if (!fflags::LooksLikeObject(flags_)) flags_ = "{}";
+    }
+    if (!util::ReadAll(dataDir_ + L"\\profiles.json", profiles_)) profiles_.clear();
 }
 
 App::~App()
 {
+    live_.Stop();
     StopWatcher();
 }
 
 void App::LoadConfig()
 {
-    target_ = std::clamp(static_cast<int>(GetPrivateProfileIntW(L"fps", L"target", 240, configPath_.c_str())), kMinFps,
-                         kMaxFps);
-    enforce_ = GetPrivateProfileIntW(L"fps", L"enforce", 0, configPath_.c_str()) != 0;
+    const wchar_t* f = configPath_.c_str();
+    target_ = std::clamp(static_cast<int>(GetPrivateProfileIntW(L"fps", L"target", 240, f)), kMinFps, kMaxFps);
+    enforce_ = GetPrivateProfileIntW(L"fps", L"enforce", 0, f) != 0;
+    priority_ = std::clamp(static_cast<int>(GetPrivateProfileIntW(L"tweaks", L"priority", 0, f)), 0, 2);
+    fso_ = GetPrivateProfileIntW(L"tweaks", L"fso", 0, f) != 0;
+    gpu_ = GetPrivateProfileIntW(L"tweaks", L"gpu", 0, f) != 0;
+    liveEnabled_ = GetPrivateProfileIntW(L"live", L"enabled", 1, f) != 0;
 }
 
 void App::SaveConfig()
 {
-    WritePrivateProfileStringW(L"fps", L"target", std::to_wstring(target_).c_str(), configPath_.c_str());
-    WritePrivateProfileStringW(L"fps", L"enforce", enforce_ ? L"1" : L"0", configPath_.c_str());
+    const wchar_t* f = configPath_.c_str();
+    WritePrivateProfileStringW(L"fps", L"target", std::to_wstring(target_).c_str(), f);
+    WritePrivateProfileStringW(L"fps", L"enforce", enforce_ ? L"1" : L"0", f);
+    WritePrivateProfileStringW(L"tweaks", L"priority", std::to_wstring(priority_).c_str(), f);
+    WritePrivateProfileStringW(L"tweaks", L"fso", fso_ ? L"1" : L"0", f);
+    WritePrivateProfileStringW(L"tweaks", L"gpu", gpu_ ? L"1" : L"0", f);
+    WritePrivateProfileStringW(L"live", L"enabled", liveEnabled_ ? L"1" : L"0", f);
 }
 
 std::wstring App::BackupPath() const
@@ -81,9 +102,10 @@ int App::Run(int show)
     if (!CreateMainWindow(show)) return 1;
     InitWebView();
     StartWatcher();
-    roblox_ = RobloxRunning();
     hz_ = RefreshRate();
+    Poll();
     SetTimer(hwnd_, kTimerPoll, 1500, nullptr);
+    SetTimer(hwnd_, kTimerFrames, 100, nullptr);
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
         TranslateMessage(&msg);
@@ -199,7 +221,7 @@ void App::InitWebView()
     options->put_AdditionalBrowserArguments(
         L"--disable-background-networking --disable-component-update --disable-sync --no-first-run "
         L"--disable-features=msSmartScreenProtection,Translate,msEdgeTranslate,AutofillServerCommunication");
-    std::wstring udf = dataDir_ + L"\\webview";
+    std::wstring udf = dataDir_ + (elevated_ ? L"\\webview-admin" : L"\\webview");
     HRESULT hr = create(
         nullptr, udf.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
@@ -377,6 +399,8 @@ void App::OnMessage(const std::wstring& raw)
     if (cmd == L"ready") {
         ready_ = true;
         Post(std::string("{\"t\":\"win\",\"max\":") + Bool(IsZoomed(hwnd_) != FALSE) + "}");
+        Post("{\"t\":\"fflags\",\"managed\":" + Bool(flagsManaged_) + ",\"data\":\"" + util::JsonEscape(flags_) + "\"}");
+        Post("{\"t\":\"profiles\",\"data\":\"" + util::JsonEscape(profiles_) + "\"}");
         PushState(true);
         for (auto& p : pending_) Post(p);
         pending_.clear();
@@ -452,7 +476,178 @@ void App::OnMessage(const std::wstring& raw)
         }
         Refresh();
         PushState(true);
+    } else if (cmd == L"priority") {
+        priority_ = std::clamp(_wtoi(arg.c_str()), 0, 2);
+        SaveConfig();
+        tweaks::ApplyPriority(pids_, priority_);
+        static const char* names[] = {"Normal", "Above normal", "High"};
+        Log("ok", std::string("Roblox priority: ") + names[priority_]);
+        PushState(true);
+    } else if (cmd == L"fso") {
+        fso_ = arg == L"1";
+        SaveConfig();
+        ApplyExeTweaks(exes_, true, false);
+        Log("ok", std::string(fso_ ? "Fullscreen optimizations disabled" : "Fullscreen optimizations restored") +
+                      " for " + std::to_string(exes_.size()) + " Roblox build(s)");
+        PushState(true);
+    } else if (cmd == L"gpu") {
+        gpu_ = arg == L"1";
+        SaveConfig();
+        ApplyExeTweaks(exes_, false, true);
+        Log("ok", std::string(gpu_ ? "High-performance GPU set" : "GPU preference reset") + " for " +
+                      std::to_string(exes_.size()) + " Roblox build(s)");
+        PushState(true);
+    } else if (cmd == L"plan") {
+        if (power::SetActivePlan(arg)) {
+            Log("ok", "Power plan changed");
+        } else {
+            Log("err", "Could not change power plan");
+        }
+        PushState(true);
+    } else if (cmd == L"overlay") {
+        if (power::SetOverlay(util::Narrow(arg))) {
+            Log("ok", "Power mode changed");
+        } else {
+            Log("err", "Could not change power mode");
+        }
+        PushState(true);
+    } else if (cmd == L"fflags") {
+        std::string json = util::Narrow(arg);
+        if (!fflags::LooksLikeObject(json)) {
+            Log("err", "Invalid FFlag data");
+        } else {
+            flags_ = json;
+            flagsManaged_ = true;
+            util::WriteAtomic(dataDir_ + L"\\fflags.json", flags_);
+            WriteFlags(true);
+        }
+        PushState(true);
+    } else if (cmd == L"profiles") {
+        profiles_ = util::Narrow(arg);
+        if (!util::WriteAtomic(dataDir_ + L"\\profiles.json", profiles_)) Log("err", "Could not save profiles");
+    } else if (cmd == L"live") {
+        liveEnabled_ = arg == L"1";
+        liveTried_ = false;
+        SaveConfig();
+        UpdateLive();
+        PushState(true);
+    } else if (cmd == L"elevate") {
+        Elevate();
     }
+}
+
+void App::ApplyExeTweaks(const std::vector<std::wstring>& exes, bool fso, bool gpu)
+{
+    for (const auto& exe : exes) {
+        if (fso && tweaks::FsoDisabled(exe) != fso_) tweaks::SetFsoDisabled(exe, fso_);
+        if (gpu && tweaks::HighPerfGpu(exe) != gpu_) tweaks::SetHighPerfGpu(exe, gpu_);
+    }
+}
+
+void App::WriteFlags(bool announce)
+{
+    if (!flagsManaged_) return;
+    std::string err;
+    auto dirs = tweaks::VersionDirs();
+    int n = fflags::Write(dirs, flags_, err);
+    flagDirs_ = n < 0 ? 0 : n;
+    if (!err.empty()) {
+        Log("err", err);
+    } else if (announce) {
+        Log("ok", "FFlags written to " + std::to_string(flagDirs_) + " Roblox build(s)" +
+                      (roblox_ ? " (applies on next launch)" : ""));
+    }
+}
+
+void App::UpdateLive()
+{
+    bool want = liveEnabled_ && roblox_;
+    if (want && !live_.Active() && !liveTried_) {
+        liveTried_ = true;
+        live_.SetPids(pids_);
+        if (live_.Start()) {
+            Log("info", "Live frame monitor started");
+        } else if (live_.GetStatus() == LiveMonitor::Status::Denied) {
+            Log("warn", "Live monitor needs administrator rights");
+        } else {
+            Log("err", "Live monitor could not start");
+        }
+    } else if (!want && live_.Active()) {
+        live_.Stop();
+        livePid_ = 0;
+    }
+    if (!roblox_) liveTried_ = false;
+    if (live_.Active()) live_.SetPids(pids_);
+}
+
+void App::PumpFrames()
+{
+    if (!live_.Active() || !ready_ || IsIconic(hwnd_)) return;
+    live_.Flush();
+    std::unordered_map<DWORD, std::vector<float>> batch;
+    live_.Collect(batch);
+    if (batch.empty()) return;
+    DWORD fg = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &fg);
+    DWORD pick = 0;
+    if (batch.count(fg)) {
+        pick = fg;
+    } else if (batch.count(livePid_)) {
+        pick = livePid_;
+    } else {
+        size_t best = 0;
+        for (const auto& kv : batch) {
+            if (kv.second.size() > best) {
+                best = kv.second.size();
+                pick = kv.first;
+            }
+        }
+    }
+    livePid_ = pick;
+    const auto& v = batch[pick];
+    std::string j = "{\"t\":\"frames\",\"pid\":" + std::to_string(pick) + ",\"ft\":[";
+    j.reserve(j.size() + v.size() * 7);
+    char b[24];
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::snprintf(b, sizeof(b), i ? ",%.3f" : "%.3f", v[i]);
+        j += b;
+    }
+    j += "]}";
+    Post(j);
+}
+
+void App::Elevate()
+{
+    wchar_t exe[MAX_PATH * 2]{};
+    GetModuleFileNameW(nullptr, exe, MAX_PATH * 2);
+    std::wstring params = L"--after " + std::to_wstring(GetCurrentProcessId());
+    SHELLEXECUTEINFOW sei{};
+    sei.cbSize = sizeof(sei);
+    sei.hwnd = hwnd_;
+    sei.lpVerb = L"runas";
+    sei.lpFile = exe;
+    sei.lpParameters = params.c_str();
+    sei.nShow = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&sei)) {
+        PostMessageW(hwnd_, WM_CLOSE, 0, 0);
+    } else {
+        Log("warn", "Administrator restart was cancelled");
+    }
+}
+
+std::string App::PowerJson() const
+{
+    std::wstring active = power::ActivePlan();
+    std::string j = "\"plan\":\"" + util::JsonEscape(util::Narrow(active)) + "\",\"planKind\":\"" +
+                    power::PlanKind(active) + "\",\"overlay\":\"" + power::Overlay() + "\",\"plans\":[";
+    bool first = true;
+    for (const auto& p : power::Plans()) {
+        if (!first) j += ",";
+        first = false;
+        j += "{\"id\":\"" + util::JsonEscape(util::Narrow(p.id)) + "\",\"name\":\"" +
+             util::JsonEscape(util::Narrow(p.name)) + "\",\"kind\":\"" + power::PlanKind(p.id) + "\"}";
+    }
+    return j + "]";
 }
 
 void App::Refresh()
@@ -479,7 +674,8 @@ void App::Refresh()
 
 void App::Poll()
 {
-    bool running = RobloxRunning();
+    pids_ = tweaks::RobloxPids();
+    bool running = !pids_.empty();
     int hz = RefreshRate();
     if (running != roblox_) {
         roblox_ = running;
@@ -487,6 +683,22 @@ void App::Poll()
         if (!running) Refresh();
     }
     hz_ = hz;
+    if (priority_ > 0 && running) {
+        int n = tweaks::ApplyPriority(pids_, priority_);
+        if (n > 0) Log("ok", "Priority raised for " + std::to_string(n) + " Roblox process(es)");
+    }
+
+    exes_ = tweaks::PlayerExes(pids_);
+    std::string key;
+    for (const auto& e : exes_) key += util::Narrow(tweaks::Lower(e)) + "|";
+    if (key != exeKey_) {
+        bool firstScan = exeKey_.empty();
+        exeKey_ = key;
+        if (fso_ || gpu_) ApplyExeTweaks(exes_, fso_, gpu_);
+        if (flagsManaged_) WriteFlags(false);
+        if (!firstScan && (fso_ || gpu_ || flagsManaged_)) Log("info", "New Roblox build detected, tweaks re-applied");
+    }
+    UpdateLive();
     if (watchDir_.empty()) {
         SettingsState s = settings_.Query();
         if (!s.found) Refresh();
@@ -505,7 +717,22 @@ void App::PushState(bool force)
                     util::JsonEscape(util::Narrow(util::FileName(settings_.Path()))) +
                     "\",\"roblox\":" + Bool(roblox_) + ",\"hz\":" + std::to_string(hz_) +
                     ",\"enforce\":" + Bool(enforce_) + ",\"target\":" + std::to_string(target_) +
-                    ",\"backup\":" + Bool(util::FileExists(BackupPath())) + "}";
+                    ",\"backup\":" + Bool(util::FileExists(BackupPath()));
+    int fsoCount = 0, gpuCount = 0;
+    for (const auto& e : exes_) {
+        if (tweaks::FsoDisabled(e)) ++fsoCount;
+        if (tweaks::HighPerfGpu(e)) ++gpuCount;
+    }
+    static const char* liveNames[] = {"off", "running", "denied", "failed"};
+    j += ",\"instances\":" + std::to_string(pids_.size()) + ",\"exes\":" + std::to_string(exes_.size()) +
+         ",\"priority\":" + std::to_string(priority_) + ",\"fso\":" + Bool(fso_) +
+         ",\"fsoCount\":" + std::to_string(fsoCount) + ",\"gpu\":" + Bool(gpu_) +
+         ",\"gpuCount\":" + std::to_string(gpuCount) + ",\"gpuHigh\":\"" +
+         util::JsonEscape(util::Narrow(gpus_.highPerf)) + "\",\"gpuLow\":\"" +
+         util::JsonEscape(util::Narrow(gpus_.powerSaving)) + "\",\"gpus\":" + std::to_string(gpus_.count) +
+         ",\"elevated\":" + Bool(elevated_) + ",\"liveEnabled\":" + Bool(liveEnabled_) + ",\"live\":\"" +
+         liveNames[static_cast<int>(live_.GetStatus())] + "\",\"flagDirs\":" + std::to_string(flagDirs_) +
+         ",\"versions\":" + std::to_string(tweaks::VersionDirs().size()) + "," + PowerJson() + "}";
     if (!force && j == lastState_) return;
     lastState_ = j;
     Post(j);
@@ -524,20 +751,6 @@ void App::Log(const char* kind, const std::string& text)
 void App::Post(const std::string& json)
 {
     if (webview_) webview_->PostWebMessageAsJson(util::Widen(json).c_str());
-}
-
-bool App::RobloxRunning() const
-{
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snap == INVALID_HANDLE_VALUE) return false;
-    PROCESSENTRY32W pe{};
-    pe.dwSize = sizeof(pe);
-    bool found = false;
-    for (BOOL ok = Process32FirstW(snap, &pe); ok && !found; ok = Process32NextW(snap, &pe)) {
-        found = _wcsicmp(pe.szExeFile, L"RobloxPlayerBeta.exe") == 0;
-    }
-    CloseHandle(snap);
-    return found;
 }
 
 int App::RefreshRate() const
@@ -681,11 +894,15 @@ LRESULT App::Handle(UINT m, WPARAM w, LPARAM l)
             Refresh();
         } else if (w == kTimerPoll) {
             Poll();
+        } else if (w == kTimerFrames) {
+            PumpFrames();
         }
         return 0;
     case WM_DESTROY:
         SavePlacement();
         KillTimer(hwnd_, kTimerPoll);
+        KillTimer(hwnd_, kTimerFrames);
+        live_.Stop();
         KillTimer(hwnd_, kTimerFs);
         StopWatcher();
         if (controller_) controller_->Close();

@@ -1,11 +1,23 @@
 #include <windows.h>
 #include <objbase.h>
+#include <shellapi.h>
 #include "app.h"
 #include "bootstrap.h"
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show)
 {
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    for (int i = 1; argv && i + 1 < argc; ++i) {
+        if (wcscmp(argv[i], L"--after") != 0) continue;
+        DWORD pid = static_cast<DWORD>(_wtoi(argv[i + 1]));
+        if (HANDLE prev = OpenProcess(SYNCHRONIZE, FALSE, pid)) {
+            WaitForSingleObject(prev, 10000);
+            CloseHandle(prev);
+        }
+    }
+    if (argv) LocalFree(argv);
     HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\RobloxFpsManager.Instance");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         HWND existing = FindWindowW(App::kClass, nullptr);
