@@ -18,6 +18,10 @@
     <ClCompile Include="..\src\net.cpp"><Filter>src</Filter></ClCompile>
     <ClCompile Include="..\src\settings.cpp"><Filter>src</Filter></ClCompile>
     <ClCompile Include="..\src\util.cpp"><Filter>src</Filter></ClCompile>
+    <ClCompile Include="..\src\tweaks.cpp"><Filter>src</Filter></ClCompile>
+    <ClCompile Include="..\src\power.cpp"><Filter>src</Filter></ClCompile>
+    <ClCompile Include="..\src\fflags.cpp"><Filter>src</Filter></ClCompile>
+    <ClCompile Include="..\src\live.cpp"><Filter>src</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\app.h"><Filter>src</Filter></ClInclude>
@@ -26,6 +30,10 @@
     <ClInclude Include="..\src\resource.h"><Filter>src</Filter></ClInclude>
     <ClInclude Include="..\src\settings.h"><Filter>src</Filter></ClInclude>
     <ClInclude Include="..\src\util.h"><Filter>src</Filter></ClInclude>
+    <ClInclude Include="..\src\tweaks.h"><Filter>src</Filter></ClInclude>
+    <ClInclude Include="..\src\power.h"><Filter>src</Filter></ClInclude>
+    <ClInclude Include="..\src\fflags.h"><Filter>src</Filter></ClInclude>
+    <ClInclude Include="..\src\live.h"><Filter>src</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\src\app.rc"><Filter>res</Filter></ResourceCompile>
